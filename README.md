@@ -94,11 +94,16 @@ One-time setup (about 20 minutes):
 ### GitHub Actions
 
 `.github/workflows/deploy.yml` runs check / lint / test / build, applies D1 migrations and
-deploys on every push to `main`. Add two repository secrets:
+deploys on every push to `main` (merging a pull request counts). Pull requests into `main` get
+the same checks without deploying. Add two repository secrets (GitHub → the repo → Settings →
+Secrets and variables → Actions → New repository secret):
 
 - `CLOUDFLARE_API_TOKEN` – an API token with the **Edit Cloudflare Workers** template plus
   **D1 Edit** and **Workers R2 Storage Edit** permissions.
 - `CLOUDFLARE_ACCOUNT_ID` – from the Workers overview page.
+
+Until both exist, pushes to `main` are checked but not deployed, with a warning on the run.
+Work happens on a branch and reaches `main` through a pull request.
 
 ## Todoist setup
 
