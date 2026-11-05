@@ -71,7 +71,10 @@ export class TodoistClient implements TodoistSource, TodoistWriter {
 	) {}
 
 	private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-		const res = await this.fetchImpl(`${BASE}${path}`, {
+		// Call fetch unbound: as `this.fetchImpl(...)` the Workers runtime throws
+		// "Illegal invocation" because `this` would be the client, not the global scope.
+		const doFetch = this.fetchImpl;
+		const res = await doFetch(`${BASE}${path}`, {
 			...init,
 			headers: {
 				Authorization: `Bearer ${this.token}`,
