@@ -5,6 +5,8 @@ TODOIST_TOKEN=
 TODOIST_PROJECT_ID=
 # Secret shown in the Todoist App Console for the webhook; used to verify X-Todoist-Hmac-SHA256.
 TODOIST_WEBHOOK_SECRET=
+# Client ID of the same Todoist app, for the one-time OAuth that turns webhooks on.
+TODOIST_CLIENT_ID=
 # Bearer key the Claude price routine uses for POST /api/offers and GET /api/offers/stale.
 OFFERS_API_KEY=dev-offers-key
 # Cloudflare Access application audience (AUD) tag and team domain, e.g. kutners.cloudflareaccess.com.

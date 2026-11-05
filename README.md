@@ -76,7 +76,8 @@ One-time setup (about 20 minutes):
    ```
 3. Secrets (`npx wrangler secret put NAME`, one at a time; see `.env.example`):
    - `TODOIST_TOKEN` – Todoist → Settings → Integrations → Developer → API token.
-   - `TODOIST_WEBHOOK_SECRET` – the client secret of the Todoist app you create below.
+   - `TODOIST_WEBHOOK_SECRET`, `TODOIST_CLIENT_ID` – the client secret and client ID of the
+     Todoist app you create below.
    - `OFFERS_API_KEY` – any long random string (`openssl rand -hex 24`); give it to the Claude routines.
    - `CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN` – from Cloudflare Access (see below); the team
      domain looks like `kutners.cloudflareaccess.com`.
@@ -134,13 +135,23 @@ Work happens on a branch and reaches `main` through a pull request.
    - A task named `Profile: <Name>` is always hidden from the site. It holds that person's
      sizes and preferences for the enrichment routine.
 4. **Completing** a task removes the item from the site. **Deleting** it does the same.
-5. **Webhook** (near-instant sync): in the [Todoist App Console](https://app.todoist.com/app/settings/integrations/developer)
-   create an app, set the webhook callback URL to
-   `https://wishlist.thekutners.com/api/todoist/webhook`, tick the events `item:added`,
-   `item:updated`, `item:completed`, `item:deleted`, `item:uncompleted`, and activate the webhook
-   (follow the "activate" OAuth link once with your own account). Copy the app's **client
-   secret** into `TODOIST_WEBHOOK_SECRET`; the site verifies `X-Todoist-Hmac-SHA256` with it
-   and ignores anything that does not match. Without the webhook the 15-minute cron still syncs.
+5. **Webhook** (near-instant sync). Without it the 15-minute cron still syncs.
+   1. In the [Todoist App Console](https://app.todoist.com/app/settings/integrations/developer)
+      create an app and set:
+      - **OAuth redirect URL**: `https://wishlist.thekutners.com/api/todoist/oauth`
+      - **Webhook callback URL**: `https://wishlist.thekutners.com/api/todoist/webhook`
+      - **Watched events**: `item:added`, `item:updated`, `item:completed`, `item:uncompleted`,
+        `item:deleted`
+   2. Add two Worker secrets (Cloudflare → Workers & Pages → family-wishlist → Settings →
+      Variables and Secrets, or `wrangler secret put`): `TODOIST_WEBHOOK_SECRET` = the app's
+      **Client secret**, `TODOIST_CLIENT_ID` = its **Client ID**.
+   3. Open `https://wishlist.thekutners.com/api/todoist/oauth/start` once and tap **Agree**.
+      Todoist only sends webhooks for accounts that have authorized the app; the page finishes
+      that authorization and says "Todoist is connected". The token it gets is not kept.
+
+   The site verifies `X-Todoist-Hmac-SHA256` with the client secret and ignores anything that
+   does not match. Opening the webhook URL in a browser shows "GET method not allowed"; that
+   is expected.
 
 The sync is Todoist → site for everything except purchase state. When a guest marks an item
 the site adds `@bought` and comments "Marked purchased on the wishlist"; undo removes the label
