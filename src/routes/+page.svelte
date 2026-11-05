@@ -47,7 +47,9 @@
 				<div class="who">
 					<div class="name">{p.name}</div>
 					<div class="count">
-						{#if p.available === 0}
+						{#if p.total === 0}
+							<span class="muted">No wishes yet</span>
+						{:else if p.available === 0}
 							<span class="muted">Nothing left to buy</span>
 						{:else}
 							<b>{p.available}</b> available

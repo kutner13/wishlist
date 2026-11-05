@@ -88,7 +88,7 @@
 	{#if data.items.length === 0}
 		<p class="empty">
 			{#if data.total === 0}
-				Nothing on {data.person.name}'s list yet.
+				No wishes on {data.person.name}'s list yet.
 			{:else if data.filters.availableOnly && data.available === 0}
 				Everything on this list has been bought.
 				<a href={withParam('all', '1')} data-sveltekit-noscroll>Show purchased items</a>
