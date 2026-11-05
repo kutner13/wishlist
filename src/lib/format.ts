@@ -48,28 +48,103 @@ export function longDate(iso: string | null | undefined): string {
 	});
 }
 
-/**
- * "Nov 3, 2026 at 11:38 AM EST" in the site's time zone. Format on the server and pass the
- * string down, so every guest sees the same text whatever their device's settings.
- */
-export function dateTime(iso: string | null | undefined, timeZone = SITE_TIME_ZONE): string {
-	if (!iso) return '';
-	const d = new Date(iso);
-	if (Number.isNaN(d.getTime())) return '';
-	const date = d.toLocaleDateString('en-US', {
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric',
-		timeZone
-	});
-	const time = d.toLocaleTimeString('en-US', {
-		hour: 'numeric',
-		minute: '2-digit',
+type DayPart = 'late' | 'morning' | 'afternoon' | 'evening' | 'night';
+
+function dayPart(hour: number): DayPart {
+	if (hour < 5) return 'late';
+	if (hour < 12) return 'morning';
+	if (hour < 17) return 'afternoon';
+	if (hour < 21) return 'evening';
+	return 'night';
+}
+
+interface Zoned {
+	year: number;
+	month: number;
+	day: number;
+	hour: number;
+	minute: number;
+	weekday: string;
+}
+
+function zoned(d: Date, timeZone: string): Zoned {
+	const parts = new Intl.DateTimeFormat('en-US', {
 		timeZone,
-		timeZoneName: 'short'
-	});
-	// Newer ICU puts a narrow no-break space before AM/PM; keep plain spaces.
-	return `${date} at ${time}`.replace(/[\u202f\u00a0]/g, ' ');
+		year: 'numeric',
+		month: 'numeric',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: 'numeric',
+		hourCycle: 'h23',
+		weekday: 'long'
+	}).formatToParts(d);
+	const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+	return {
+		year: Number(get('year')),
+		month: Number(get('month')),
+		day: Number(get('day')),
+		hour: Number(get('hour')) % 24,
+		minute: Number(get('minute')),
+		weekday: get('weekday')
+	};
+}
+
+const DAY_MS = 86_400_000;
+const calendarDay = (z: Zoned) => Date.UTC(z.year, z.month - 1, z.day) / DAY_MS;
+/** Midnight to 5am counts as the night before ("late last night"). */
+const humanDay = (z: Zoned) => calendarDay(z) - (z.hour < 5 ? 1 : 0);
+
+/** "6pm", "9am", "noon", "midnight", rounded to the nearest hour. */
+function aroundHour(z: Zoned): string {
+	const h = (z.hour + (z.minute >= 30 ? 1 : 0)) % 24;
+	if (h === 0) return 'midnight';
+	if (h === 12) return 'noon';
+	return h < 12 ? `${h}am` : `${h - 12}pm`;
+}
+
+/**
+ * A friendly "Updated \u2026" line relative to `now`, in the site's time zone:
+ * "Updated just now", "Updated earlier this afternoon", "Updated yesterday evening",
+ * "Updated late last night", "Updated Thursday around 6pm", "Updated the morning of October 21".
+ */
+export function updatedPhrase(
+	iso: string | null | undefined,
+	now: Date = new Date(),
+	timeZone = SITE_TIME_ZONE
+): string {
+	if (!iso) return '';
+	const then = new Date(iso);
+	if (Number.isNaN(then.getTime())) return '';
+
+	const mins = (now.getTime() - then.getTime()) / 60_000;
+	if (mins < 2) return 'Updated just now';
+	if (mins < 15) return 'Updated a few minutes ago';
+	if (mins < 45) return 'Updated about half an hour ago';
+	if (mins < 90) return 'Updated about an hour ago';
+
+	const t = zoned(then, timeZone);
+	const n = zoned(now, timeZone);
+	const part = dayPart(t.hour);
+	const days = calendarDay(n) - humanDay(t);
+
+	if (days <= 0) {
+		if (part === 'night') return 'Updated earlier tonight';
+		return part === dayPart(n.hour) ? `Updated earlier this ${part}` : `Updated this ${part}`;
+	}
+	if (days === 1) {
+		if (part === 'late' || part === 'night') {
+			// Still up after midnight: last evening's additions are "earlier tonight".
+			if (dayPart(n.hour) === 'late') return 'Updated earlier tonight';
+			return part === 'late' ? 'Updated late last night' : 'Updated last night';
+		}
+		return `Updated yesterday ${part}`;
+	}
+	if (days < 7) return `Updated ${t.weekday} around ${aroundHour(t)}`;
+
+	const date = then.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone });
+	const year = t.year !== n.year ? `, ${t.year}` : '';
+	const when = part === 'late' ? 'the early hours' : `the ${part}`;
+	return `Updated ${when} of ${date}${year}`;
 }
 
 /** List URL with one query key changed and the others kept. */

@@ -1,5 +1,16 @@
 <script lang="ts">
+	import { updatedPhrase } from '#lib/format';
 	let { data } = $props();
+
+	// The server renders the phrase; once in the browser it is recomputed every minute so an
+	// open tab stays true ("this morning" becomes "yesterday morning" overnight).
+	let now = $state<Date | null>(null);
+	$effect(() => {
+		now = new Date();
+		const id = setInterval(() => (now = new Date()), 60_000);
+		return () => clearInterval(id);
+	});
+	const updated = $derived(now ? updatedPhrase(data.lastAddedAt, now) : data.lastUpdated);
 </script>
 
 <svelte:head>
@@ -48,8 +59,8 @@
 		{/each}
 	</nav>
 
-	{#if data.lastUpdated}
-		<footer class="foot">Last updated {data.lastUpdated}</footer>
+	{#if updated}
+		<footer class="foot">{updated}</footer>
 	{/if}
 </main>
 
