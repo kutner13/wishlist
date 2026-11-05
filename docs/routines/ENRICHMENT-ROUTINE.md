@@ -19,7 +19,9 @@ Wishlist", "Logan Wishlist". Each section has a hidden task named
 
 Do this:
 
-1. Read each Profile task once.
+1. Read each Profile task once. If a person has no Profile task yet, carry on
+   without one (pick sizes and colors only when the owner's notes make them
+   clear) and list that person under "anything the owner should fix".
 2. List active tasks in the four sections. Skip tasks that are completed, carry
    the label `bought` or `hidden`, are named "Profile…", or whose description
    already contains `enriched:`. Also skip tasks created in the last 2 hours

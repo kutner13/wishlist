@@ -204,12 +204,27 @@ You maintain the Kutner family wishlist. Site: {SITE_URL}. Send the header
 1. GET {SITE_URL}/api/enrich/manifest and read it: it defines the limits (max items per run,
    minimum task age), the endpoints, the description hint keys, the people and their Todoist
    section names, and the control labels. If anything in the instructions conflicts with the
-   manifest, the manifest wins.
+   manifest, the manifest wins. This prompt understands manifest version 1: if the version
+   is different, or either fetch fails, change nothing and report that.
 2. GET the manifest's instructions_url (markdown) and follow it exactly.
-3. Use the manifest's pending_url to see which items the site still considers un-enriched;
-   use the Todoist connector for all reads and writes to tasks.
+3. Use the manifest's pending_url to see which items the site still considers un-enriched.
+   For all reads and writes to tasks use the Todoist connector if its tools are available;
+   if not, use the Todoist API v1 with "Authorization: Bearer $TODOIST_TOKEN"
+   (GET /api/v1/tasks?project_id=…, POST /api/v1/tasks/<id> {"description": …}).
 Never buy anything, never create accounts, never touch other projects.
 ```
+
+### Live scheduled tasks
+
+| Name                     | Schedule (America/New_York) | Notes                                                    |
+| ------------------------ | --------------------------- | -------------------------------------------------------- |
+| `Wishlist enrichment`    | daily 06:11                 | Fresh session per run, push notifications on             |
+| `Wishlist price refresh` | Mondays 07:15               | Fresh session per run, push notifications on; no Todoist |
+
+Both run in the cloud environment, so its network allow list must include
+`wishlist.thekutners.com` (plus `api.todoist.com` for the enrichment fallback). The offers key
+is in each task's stored prompt; rotating it means `wrangler secret put OFFERS_API_KEY` and
+editing both tasks.
 
 ## Runbook
 
