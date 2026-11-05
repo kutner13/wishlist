@@ -58,7 +58,7 @@ Optional one-line hints anywhere in the description, forgiving of case/spacing:
 
 ```
 price: 45        about-price anchor shown as "~$45"
-qty: 2           want more than one; site shows "1 of 2 claimed"
+qty: 2           want more than one; site shows "1 of 2 purchased"
 occasion: birthday | holidays | any    (default: any)
 ```
 
@@ -138,7 +138,7 @@ Todoist  <--(REST + webhook)-->  Cloudflare Worker (SvelteKit, adapter-cloudflar
 
 - **App:** SvelteKit with `adapter-cloudflare`. Chosen over Next.js because
   Cloudflare is a first-class SvelteKit target and the app is small; fewer
-  moving parts to rot. Server-rendered, small JS for claim interactions.
+  moving parts to rot. Server-rendered, small JS for the purchase button.
 - **DB:** Cloudflare D1 (SQLite). Migrations in repo. Nightly export to R2 as JSON.
 - **Images:** fetched at sync from the product page's `og:image`, stored in R2,
   served resized. Placeholder on failure.
