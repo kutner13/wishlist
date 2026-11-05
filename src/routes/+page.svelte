@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { timeAgo } from '#lib/format';
 	let { data } = $props();
 </script>
 
@@ -49,15 +48,9 @@
 		{/each}
 	</nav>
 
-	<footer class="foot">
-		{#if data.lastSyncAt}
-			Last synced with Todoist {timeAgo(data.lastSyncAt)}{data.lastSyncOk === false
-				? ' (last attempt failed, showing cached list)'
-				: ''} · Nothing to sign in to
-		{:else}
-			Not synced with Todoist yet · Nothing to sign in to
-		{/if}
-	</footer>
+	{#if data.lastUpdated}
+		<footer class="foot">Last updated {data.lastUpdated}</footer>
+	{/if}
 </main>
 
 <style>

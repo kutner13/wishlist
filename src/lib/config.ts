@@ -20,6 +20,9 @@ export const PEOPLE: PersonConfig[] = [
 /** Name of the Todoist project that holds the sections (resolved at runtime, TODOIST_PROJECT_ID overrides). */
 export const TODOIST_PROJECT_NAME = 'Purchases';
 
+/** Dates and times on guest pages are shown in the family's time zone. */
+export const SITE_TIME_ZONE = 'America/New_York';
+
 /** Todoist labels that control behaviour instead of being categories. */
 export const LABEL_BOUGHT = 'bought';
 export const LABEL_HIDDEN = 'hidden';

@@ -184,6 +184,14 @@ export async function loadPersonSummaries(db: Db): Promise<PersonSummary[]> {
 	return out;
 }
 
+/** When the newest item still on the site was added in Todoist (the task's `added_at`). */
+export async function lastItemAddedAt(db: Db): Promise<string | null> {
+	const row = await db.first<{ at: string | null }>(
+		'SELECT MAX(created_at) AS at FROM items WHERE removed_at IS NULL AND hidden = 0'
+	);
+	return row?.at ?? null;
+}
+
 export async function lastSync(db: Db, kind = 'todoist') {
 	return db.first<{
 		started_at: string;

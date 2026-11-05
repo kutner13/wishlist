@@ -1,4 +1,5 @@
 // Display helpers used by pages (client-safe).
+import { SITE_TIME_ZONE } from './config';
 
 export function formatPrice(cents: number | null | undefined, currency = 'USD'): string {
 	if (cents === null || cents === undefined) return '';
@@ -45,6 +46,30 @@ export function longDate(iso: string | null | undefined): string {
 		year: 'numeric',
 		timeZone: 'UTC'
 	});
+}
+
+/**
+ * "Nov 3, 2026 at 11:38 AM EST" in the site's time zone. Format on the server and pass the
+ * string down, so every guest sees the same text whatever their device's settings.
+ */
+export function dateTime(iso: string | null | undefined, timeZone = SITE_TIME_ZONE): string {
+	if (!iso) return '';
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '';
+	const date = d.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+		timeZone
+	});
+	const time = d.toLocaleTimeString('en-US', {
+		hour: 'numeric',
+		minute: '2-digit',
+		timeZone,
+		timeZoneName: 'short'
+	});
+	// Newer ICU puts a narrow no-break space before AM/PM; keep plain spaces.
+	return `${date} at ${time}`.replace(/[\u202f\u00a0]/g, ' ');
 }
 
 /** List URL with one query key changed and the others kept. */
