@@ -1,0 +1,13 @@
+// Used only by @sveltejs/adapter-cloudflare at build time (see svelte.config.js). The adapter
+// writes the SvelteKit worker to `main` below; the real deployment config is wrangler.jsonc,
+// whose own `main` (src/worker/index.ts) imports this generated file.
+{
+	"name": "family-wishlist",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": ".svelte-kit/cloudflare",
+		"binding": "ASSETS"
+	}
+}

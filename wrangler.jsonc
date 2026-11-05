@@ -1,0 +1,45 @@
+// Cloudflare Worker configuration for the family wishlist.
+// Secrets (never put them here): TODOIST_TOKEN, TODOIST_WEBHOOK_SECRET, OFFERS_API_KEY,
+// CF_ACCESS_AUD, CF_ACCESS_TEAM_DOMAIN, GUEST_SLUG (optional), TODOIST_PROJECT_ID (optional).
+// Set them with `wrangler secret put <NAME>`; locally they come from `.dev.vars`.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "family-wishlist",
+	// src/worker/index.ts wraps the SvelteKit worker (built to .svelte-kit/cloudflare by the
+	// adapter, see wrangler.kit.jsonc) to add the cron handler and the thekutners.com/list redirect.
+	"main": "src/worker/index.ts",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": ".svelte-kit/cloudflare",
+		"binding": "ASSETS"
+	},
+	"observability": { "enabled": true },
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "family-wishlist",
+			// Replace with the id printed by `wrangler d1 create family-wishlist`.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "IMAGES",
+			"bucket_name": "family-wishlist-images"
+		}
+	],
+	"triggers": {
+		// Every 15 min: Todoist -> site sync and outbox drain. 09:00 UTC daily: page image/offer refresh.
+		"crons": ["*/15 * * * *", "0 9 * * *"]
+	},
+	"routes": [
+		{ "pattern": "wishlist.thekutners.com", "custom_domain": true },
+		// Alias: everything under thekutners.com/list redirects to the canonical host.
+		{ "pattern": "thekutners.com/list*", "zone_name": "thekutners.com" }
+	],
+	"vars": {
+		"CANONICAL_HOST": "wishlist.thekutners.com"
+	}
+}

@@ -1,0 +1,16 @@
+# Copy to .dev.vars for `wrangler dev` / `vite dev`. Never commit .dev.vars.
+# Todoist personal API token (Todoist > Settings > Integrations > Developer).
+TODOIST_TOKEN=
+# Optional: skip the project-name lookup and use this Todoist project id.
+TODOIST_PROJECT_ID=
+# Secret shown in the Todoist App Console for the webhook; used to verify X-Todoist-Hmac-SHA256.
+TODOIST_WEBHOOK_SECRET=
+# Bearer key the Claude price routine uses for POST /api/offers and GET /api/offers/stale.
+OFFERS_API_KEY=dev-offers-key
+# Cloudflare Access application audience (AUD) tag and team domain, e.g. kutners.cloudflareaccess.com.
+CF_ACCESS_AUD=
+CF_ACCESS_TEAM_DOMAIN=
+# Optional guest URL prefix. Empty = clean URLs.
+GUEST_SLUG=
+# Local development only: skip the Cloudflare Access JWT check for /admin.
+DEV_BYPASS_ACCESS=1

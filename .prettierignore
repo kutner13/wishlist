@@ -1,0 +1,10 @@
+node_modules
+.svelte-kit
+.wrangler
+build
+package-lock.json
+docs/wireframes
+docs/screenshots
+worker-configuration.d.ts
+docs/*.md
+docs/routines

@@ -1,5 +1,12 @@
 # Daily wishlist enrichment routine (Claude scheduled task)
 
+> This file is served by the site at `GET /api/enrich/instructions`. The JSON at
+> `GET /api/enrich/manifest` is authoritative for limits (items per run, minimum task
+> age), endpoint URLs, hint keys, people/section aliases and control labels: if a number
+> here and the manifest disagree, follow the manifest. The routine's scheduled-task
+> prompt is only a bootstrap that fetches both; edit this file and deploy to change
+> the routine.
+
 Schedule: every day 06:30 America/New_York. Connectors: Todoist, web search.
 Optional secret: OFFERS_API_KEY and SITE_URL for posting store prices.
 
