@@ -88,6 +88,44 @@ describe('parseTask', () => {
 		expect(p.name).toBe('Thing');
 	});
 
+	it('drops a markdown product-link line from the notes (Todoist iOS paste)', () => {
+		// Shape of a real task in the Purchases project.
+		const url =
+			'https://www.amazon.com/gp/product/B06Y2BQ15R/ref=ox_sc_act_title_1?smid=A1N2X4ZOL32CTZ&psc=1';
+		const p = parseTask({
+			...base,
+			description: `[Amazon.com: Alpine MotoSafe Tour | Motorcycle Ear Plugs | 1 P…](${url})`
+		});
+		expect(p.productUrl).toBe(url);
+		expect(p.notes).toBe('');
+	});
+
+	it('unwraps inline markdown links and bold in the notes', () => {
+		const p = parseTask({
+			...base,
+			description:
+				'Get the **800LR (US)** version.\nAlso at [Home Depot](https://hd.example/x) or [](https://c.example/y)\nhttps://a.example/p'
+		});
+		expect(p.productUrl).toBe('https://hd.example/x');
+		expect(p.extraUrls).toEqual(['https://c.example/y', 'https://a.example/p']);
+		expect(p.notes).toBe(
+			'Get the 800LR (US) version.\nAlso at Home Depot or https://c.example/y\nhttps://a.example/p'
+		);
+	});
+
+	it('a markdown link in the task name becomes the name and the product link (Safari share)', () => {
+		const p = parseTask({
+			...base,
+			content: '[Black Core Essentials Fleece Hoodie](https://shop.example/hoodie)',
+			description: 'size: L\nhttps://other.example/alt'
+		});
+		expect(p.name).toBe('Black Core Essentials Fleece Hoodie');
+		expect(p.productUrl).toBe('https://shop.example/hoodie');
+		expect(p.extraUrls).toEqual(['https://other.example/alt']);
+		expect(p.notes).toBe('https://other.example/alt');
+		expect(p.size).toBe('L');
+	});
+
 	it('separates control labels from categories', () => {
 		const p = parseTask({ ...base, labels: ['Toys', 'bought', 'hidden'] });
 		expect(p.categories).toEqual(['toys']);

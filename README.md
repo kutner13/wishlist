@@ -110,7 +110,10 @@ deploys on every push to `main`. Add two repository secrets:
    can keep its other uses.
 3. **Adding an item**: type the name, pick the section. Everything else is optional:
    - **Description**: notes, size, color. The first URL becomes the product link; any further
-     URLs become extra "where to buy" entries.
+     URLs become extra "where to buy" entries. Links pasted on the phone arrive as
+     `[title](url)`; the site shows them as plain text and drops a line that is only the product link.
+   - **From Safari**: Share → Todoist on a product page makes a task named `[Page title](url)`.
+     The site uses the title as the item name and the URL as the product link.
    - **Priority**: p1 = "Really want", p2 = "Would love", p3 = "Nice to have", p4 = no badge.
    - **Labels** are categories (`@toys`, `@books`, `@clothes`), except two control labels:
      `@bought` (purchased; the site sets it too) and `@hidden` (keep in Todoist, don't show).

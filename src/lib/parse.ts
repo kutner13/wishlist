@@ -9,6 +9,25 @@ import {
 
 const URL_RE = /https?:\/\/[^\s<>()"']+/gi;
 const HINT_RE = /^\s*(price|qty|quantity|occasion|enriched|size|colou?r)\s*[:=]\s*(.+?)\s*$/i;
+// Todoist stores pasted links as `[title](url)` (the iOS app and the Safari share sheet both
+// do this) and bold as `**text**`. The site shows plain text, so these are unwrapped.
+const MD_LINK_RE = /\[([^\]\n]*)\]\((https?:\/\/[^\s<>()"']+)\)/gi;
+const MD_LINK_LINE_RE = /^\[[^\]\n]*\]\((https?:\/\/[^\s<>()"']+)\)$/i;
+
+/** Markdown links become their title (or the URL if untitled); `**bold**` loses its markers. */
+export function plainText(text: string): string {
+	return text
+		.replace(MD_LINK_RE, (_m, label: string, url: string) => label.trim() || url)
+		.replace(/\*\*(.+?)\*\*/g, '$1');
+}
+
+/** True when the line is nothing but `url`, bare or as a markdown link. */
+function isOnlyLink(line: string, url: string): boolean {
+	const t = line.trim();
+	if (t === url) return true;
+	const m = t.match(MD_LINK_LINE_RE);
+	return !!m && extractUrls(m[1])[0] === url;
+}
 
 export interface DescriptionHints {
 	aboutPriceCents: number | null;
@@ -135,16 +154,21 @@ export function priorityToDesire(priority: number): 1 | 2 | 3 | 4 {
 
 export function parseTask(task: TodoistTaskLike): ParsedItem {
 	const hints = parseDescription(task.description ?? '');
-	const urls = extractUrls(task.description ?? '');
+	// A link in the task name (Safari share sheet: "[Page title](url)") counts as the product
+	// link, ahead of any in the description.
+	const urls = [
+		...new Set([...extractUrls(task.content ?? ''), ...extractUrls(task.description ?? '')])
+	];
 	const [productUrl = null, ...extraUrls] = urls;
-	// Remove the product link line from notes if that line was only the URL.
+	// Remove the product link line from notes if that line was only the link.
 	const notes = hints.notes
 		.split('\n')
-		.filter((l) => !(productUrl && l.trim() === productUrl))
+		.filter((l) => !(productUrl && isOnlyLink(l, productUrl)))
+		.map(plainText)
 		.join('\n')
 		.trim();
 	const labels = (task.labels ?? []).map((l) => l.toLowerCase());
-	const name = (task.content ?? '').trim();
+	const name = plainText(task.content ?? '').trim();
 	return {
 		todoistTaskId: task.id,
 		name,
