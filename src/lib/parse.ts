@@ -21,12 +21,54 @@ export function plainText(text: string): string {
 		.replace(/\*\*(.+?)\*\*/g, '$1');
 }
 
-/** True when the line is nothing but `url`, bare or as a markdown link. */
-function isOnlyLink(line: string, url: string): boolean {
+/** True when the line is nothing but one link, bare or as a markdown link. */
+function isLinkOnly(line: string): boolean {
 	const t = line.trim();
-	if (t === url) return true;
-	const m = t.match(MD_LINK_LINE_RE);
-	return !!m && extractUrls(m[1])[0] === url;
+	if (!t) return false;
+	if (MD_LINK_LINE_RE.test(t)) return true;
+	const urls = extractUrls(t);
+	return urls.length === 1 && t.replace(/[.,;:!?)\]]+$/, '') === urls[0];
+}
+
+// Query parameters that only track where a click came from; they never pick the product.
+const TRACKING_PARAM_RE =
+	/^(utm_.*|_ref|ref|ref_|psc|smid|tag|th|linkcode|camp|creative|creativeasin|gclid|fbclid|msclkid|mc_cid|mc_eid|pd_rd_.*|pf_rd_.*|qid|sr|crid|sprefix|keywords|content-id)$/i;
+
+/**
+ * The same value for two links to the same product: host without www, path without a
+ * trailing slash, and only the query parameters that matter. Amazon links reduce to the
+ * product's ASIN, so /gp/product/X/ref=… and /dp/X match.
+ */
+export function productKey(url: string): string {
+	let u: URL;
+	try {
+		u = new URL(url);
+	} catch {
+		return url;
+	}
+	const host = u.hostname.toLowerCase().replace(/^www\./, '');
+	if (/(^|\.)amazon\.[a-z.]+$/.test(host)) {
+		const m = u.pathname.match(
+			/\/(?:dp|gp\/product|gp\/aw\/d|exec\/obidos\/ASIN)\/([A-Z0-9]{10})/i
+		);
+		if (m) return `amazon:${m[1].toUpperCase()}`;
+	}
+	const params = [...u.searchParams]
+		.filter(([k]) => !TRACKING_PARAM_RE.test(k))
+		.sort(([a], [b]) => a.localeCompare(b));
+	const query = new URLSearchParams(params).toString();
+	return `${host}${u.pathname.replace(/\/+$/, '')}${query ? `?${query}` : ''}`;
+}
+
+/** Drops later links to a product already listed, keeping the first spelling. */
+function uniqueProducts(urls: string[]): string[] {
+	const seen = new Set<string>();
+	return urls.filter((url) => {
+		const key = productKey(url);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
 }
 
 export interface DescriptionHints {
@@ -156,16 +198,20 @@ export function parseTask(task: TodoistTaskLike): ParsedItem {
 	const hints = parseDescription(task.description ?? '');
 	// A link in the task name (Safari share sheet: "[Page title](url)") counts as the product
 	// link, ahead of any in the description.
-	const urls = [
-		...new Set([...extractUrls(task.content ?? ''), ...extractUrls(task.description ?? '')])
-	];
+	// Links to the same product (tracking codes aside) count once.
+	const urls = uniqueProducts([
+		...extractUrls(task.content ?? ''),
+		...extractUrls(task.description ?? '')
+	]);
 	const [productUrl = null, ...extraUrls] = urls;
-	// Remove the product link line from notes if that line was only the link.
+	// Lines that are only a link leave the notes: every link is already shown as the product
+	// link or a "where to buy" entry.
 	const notes = hints.notes
 		.split('\n')
-		.filter((l) => !(productUrl && isOnlyLink(l, productUrl)))
+		.filter((l) => !isLinkOnly(l))
 		.map(plainText)
 		.join('\n')
+		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 	const labels = (task.labels ?? []).map((l) => l.toLowerCase());
 	const name = plainText(task.content ?? '').trim();

@@ -117,7 +117,8 @@ Work happens on a branch and reaches `main` through a pull request.
 3. **Adding an item**: type the name, pick the section. Everything else is optional:
    - **Description**: notes, size, color. The first URL becomes the product link; any further
      URLs become extra "where to buy" entries. Links pasted on the phone arrive as
-     `[title](url)`; the site shows them as plain text and drops a line that is only the product link.
+     `[title](url)`; the site shows them as plain text. Lines that are only a link are left out of
+     the notes, and links to the same product (tracking codes aside, Amazon by product ID) count once.
    - **From Safari**: Share → Todoist on a product page makes a task named `[Page title](url)`.
      The site uses the title as the item name and the URL as the product link.
    - **Priority**: p1 = "Really want", p2 = "Would love", p3 = "Nice to have", p4 = no badge.
