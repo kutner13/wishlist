@@ -277,3 +277,25 @@ Profiles, kept in Todoist so they are editable from the phone:
 Site changes: parse `size:`, `color:`, `enriched:` hints; show a muted "Link and
 details added automatically on <date>" note on the item sheet; treat any task
 named `Profile...` as hidden.
+
+### 14.1 Keeping the routine in step with the site
+
+The scheduled task's own prompt is a 5-line **bootstrap** that never changes:
+fetch `GET /api/enrich/manifest` (limits, endpoints, people, allowed hints,
+version), fetch `GET /api/enrich/instructions` (markdown served from
+`docs/routines/ENRICHMENT-ROUTINE.md` in this repo), then follow them. So:
+
+- Any site change that affects the routine is made in the same commit as the
+  instructions file, deploys together, and takes effect on the next run.
+- The manifest is generated from the app's own config constants, so limits,
+  hint names, section aliases, and control labels cannot drift.
+- If the manifest `version` is one the bootstrap does not understand, or either
+  fetch fails, the routine does nothing and reports that, rather than guessing.
+- Removing a feature from the site = removing it from the instructions file.
+  The routine has no memory of its own.
+
+Execution: a cloud Claude scheduled task (fresh session each run, Todoist
+connector, web search, `SITE_URL` + `OFFERS_API_KEY` as environment secrets).
+Nothing runs on the owner's devices. Push notifications are on, so a run that
+has "unsure" items or needs a decision notifies the owner's phone and the run's
+conversation can be opened and answered there.
