@@ -225,3 +225,55 @@ Wireframes: `docs/wireframes/wireframes.html`.
   code change.
 - `/admin` and `/api/admin/*` sit behind Cloudflare Access (see
   `docs/SETUP-CLOUDFLARE-ACCESS.md`).
+
+## 14. Daily enrichment sweep (added 2026-11-05)
+
+Goal: the owner types two words into Todoist ("Sixers tickets", "Abercrombie
+hoodie", "OXO baking storage") and within a day the entry is useful to a guest:
+a real product link, a one-line description, the right size/color, a price hint.
+
+How it works:
+
+- A **Claude scheduled task** runs daily (06:30 America/New_York). It has the
+  Todoist connector and web search. It does not need site credentials for the
+  core job, because it writes to Todoist and the site syncs from there.
+- It reads every task in the four wishlist sections of `Purchases` that has no
+  URL in its description or no `enriched:` hint. (The site also exposes
+  `GET /api/enrich/pending` for the same list.)
+- For each, it reads that person's **Profile** task (see below), web-searches
+  for a sensible specific product, and **appends** to the description. It never
+  rewrites the owner's own words and never changes the task name.
+
+  Appended block, example for "Abercrombie hoodie" on Kevin's list:
+
+  ```
+  https://www.abercrombie.com/shop/us/p/essential-popover-hoodie-12345
+  Essential popover hoodie, heavyweight fleece.
+  size: L   color: any dark color
+  price: 70
+  enriched: 2026-11-06
+  ```
+
+- It also posts up to 3 store prices to `POST /api/offers` when it has the
+  site's key (spec §6, same routine).
+- For things that are not a single product ("Sixers tickets"), it links the
+  official or most sensible page (team site / Ticketmaster), writes a price
+  range, and says what would be welcome ("any home game, two seats").
+- Guard rails: no purchases, no account creation, no changes to completed or
+  `@bought` tasks, skip anything whose description already contains
+  `enriched:`, at most 20 items per run, and a short summary comment is not
+  added (noise). If it is unsure, it adds the best link it found plus
+  `enriched: <date> (unsure)` so the owner can fix it from the phone.
+
+Profiles, kept in Todoist so they are editable from the phone:
+
+- One task per person named `Profile: <Name>` in that person's section,
+  labelled `@hidden`. The site ignores it; the routine reads it.
+- Description holds free text the routine uses verbatim as context. Suggested
+  fields: shirt/hoodie, pants (waist/inseam), shoe, hat, ring; favorite colors
+  and colors to avoid; brands liked/disliked; teams; age (kids); hobbies;
+  "already have" notes; allergies/dietary; gift card preferences.
+
+Site changes: parse `size:`, `color:`, `enriched:` hints; show a muted "Link and
+details added automatically on <date>" note on the item sheet; treat any task
+named `Profile...` as hidden.
