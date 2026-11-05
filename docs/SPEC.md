@@ -198,3 +198,30 @@ no native app, no paid price APIs, no affiliate links.
 3. **Build B:** product-page image/price fetch, offers API, Claude price routine,
    admin, export, runbook.
 4. **Hardening:** webhook, health alerts, PWA, accessibility pass.
+
+## 12. Design decisions from wireframe review (2026-11-05)
+
+Wireframes: `docs/wireframes/wireframes.html`.
+
+| Question | Decision |
+|---|---|
+| Card style | **Variant A "Clean & warm"**: off-white, 20px radius, Fraunces serif for item name and price, Inter elsewhere, terracotta accent `#d85b2b`, mint "available" green. |
+| Purchased items | Stay in place, dimmed and struck through. |
+| Headline price on a card | **Best price found** (from offers). Fall back to the owner's `~$` hint when no offers exist, then to nothing. |
+| "Available only" filter | **Default on**, always. Guest can toggle it off. |
+| `qty: N` after first purchase | Same "Mark purchased" button, pill reads "1 of 2 purchased". Undo releases the most recent mark. |
+| Home person cards | Name, **one thumbnail** (image of the top-desire available item, placeholder if none), and **one number: items available**. No total count. |
+
+## 13. Deployment URLs
+
+- Primary: `https://wishlist.thekutners.com` (Cloudflare Worker on a custom domain).
+- Alias: `https://thekutners.com/list` and everything under it. Implemented as a
+  Worker route `thekutners.com/list*` that 302-redirects to the same path on
+  `wishlist.thekutners.com`, so there is exactly one canonical origin and no
+  base-path handling in the app.
+- Guest secret slug: **off by default** because the owner chose clean URLs. A
+  `GUEST_SLUG` secret, when set, requires `/<slug>` as the first path segment
+  and 404s everything else. Can be turned on later from the runbook without a
+  code change.
+- `/admin` and `/api/admin/*` sit behind Cloudflare Access (see
+  `docs/SETUP-CLOUDFLARE-ACCESS.md`).
