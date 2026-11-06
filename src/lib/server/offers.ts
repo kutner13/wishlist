@@ -1,7 +1,7 @@
 // Offers: best-price bookkeeping, the Claude price routine's API writes, and the
 // product-page fetch that fills `source='page'` offers and images (SPEC §6).
 import { PAGE_REFRESH_HOURS } from '#lib/config';
-import { hostnameOf } from '#lib/parse';
+import { hostnameOf, productKey } from '#lib/parse';
 import type { ItemRow } from '#lib/types';
 import type { Db } from './db';
 import type { ImageStore } from './images';
@@ -17,6 +17,36 @@ export async function recomputeBest(db: Db, itemId: number) {
 		itemId
 	);
 	if (best) await db.run('UPDATE offers SET is_best = 1 WHERE id = ?', best.id);
+}
+
+/**
+ * Safety net run on every sync: a `page` offer must come from the item's current product
+ * link. One fetched from an earlier link (or left behind when the link was removed) is
+ * dropped, and the item is queued for a fresh page check. Catches anything the link-change
+ * branch of the sync missed, including rows written before that branch existed.
+ */
+export async function dropStalePageOffers(db: Db): Promise<number> {
+	const rows = await db.all<{
+		id: number;
+		item_id: number;
+		url: string | null;
+		product_url: string | null;
+	}>(
+		`SELECT o.id, o.item_id, o.url, i.product_url FROM offers o
+		 JOIN items i ON i.id = o.item_id WHERE o.source = 'page'`
+	);
+	const touched = new Set<number>();
+	for (const r of rows) {
+		const stale = !r.product_url || !r.url || productKey(r.url) !== productKey(r.product_url);
+		if (!stale) continue;
+		await db.run('DELETE FROM offers WHERE id = ?', r.id);
+		touched.add(r.item_id);
+	}
+	for (const itemId of touched) {
+		await db.run('UPDATE items SET page_checked_at = NULL WHERE id = ?', itemId);
+		await recomputeBest(db, itemId);
+	}
+	return touched.size;
 }
 
 export interface IncomingOffer {
