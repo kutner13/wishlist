@@ -10,7 +10,10 @@ export interface Bindings {
 	ASSETS?: Fetcher;
 	TODOIST_TOKEN?: string;
 	TODOIST_PROJECT_ID?: string;
+	/** The Todoist app's client secret: signs webhooks and completes the one-time OAuth. */
 	TODOIST_WEBHOOK_SECRET?: string;
+	/** The Todoist app's client ID, for the one-time OAuth that turns webhooks on. */
+	TODOIST_CLIENT_ID?: string;
 	OFFERS_API_KEY?: string;
 	CF_ACCESS_AUD?: string;
 	CF_ACCESS_TEAM_DOMAIN?: string;

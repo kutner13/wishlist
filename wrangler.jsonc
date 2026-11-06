@@ -1,5 +1,5 @@
 // Cloudflare Worker configuration for the family wishlist.
-// Secrets (never put them here): TODOIST_TOKEN, TODOIST_WEBHOOK_SECRET, OFFERS_API_KEY,
+// Secrets (never put them here): TODOIST_TOKEN, TODOIST_WEBHOOK_SECRET, TODOIST_CLIENT_ID, OFFERS_API_KEY,
 // CF_ACCESS_AUD, CF_ACCESS_TEAM_DOMAIN, GUEST_SLUG (optional), TODOIST_PROJECT_ID (optional).
 // Set them with `wrangler secret put <NAME>`; locally they come from `.dev.vars`.
 {

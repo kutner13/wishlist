@@ -26,9 +26,15 @@ describe('syncFromTodoist', () => {
 		expect(lego.about_price_cents).toBe(4500);
 		expect(lego.occasion).toBe('holidays');
 		expect(JSON.parse(lego.categories)).toEqual(['toys']);
-		expect(lego.notes).toBe(
-			'The 42xxx one with the pull-back motor, not the small one.\nhttps://www.target.com/p/lego-rally/-/A-123'
+		// The Target link is a "where to buy" entry, not notes text.
+		expect(lego.notes).toBe('The 42xxx one with the pull-back motor, not the small one.');
+		const legoOffers = await db.all<{ source: string; store: string; url: string }>(
+			'SELECT source, store, url FROM offers WHERE item_id = ?',
+			lego.id
 		);
+		expect(legoOffers).toEqual([
+			{ source: 'manual', store: 'target.com', url: 'https://www.target.com/p/lego-rally/-/A-123' }
+		]);
 		expect(lego.created_at).toBe('2026-10-20T12:00:00Z');
 
 		const towel = items.find((i) => i.todoist_task_id === 't-towel')!;

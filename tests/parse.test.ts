@@ -5,7 +5,8 @@ import {
 	parseDescription,
 	parsePrice,
 	parseTask,
-	priorityToDesire
+	priorityToDesire,
+	productKey
 } from '../src/lib/parse';
 
 describe('parseDescription', () => {
@@ -77,15 +78,59 @@ describe('parseTask', () => {
 		expect(priorityToDesire(0)).toBe(4);
 	});
 
-	it('first URL is the product link, the rest are extra, URL-only lines leave the notes', () => {
+	it('first URL is the product link, the rest are extra, link-only lines leave the notes', () => {
 		const p = parseTask({
 			...base,
 			description: 'Notes line\nhttps://a.example/p\nhttps://b.example/q'
 		});
 		expect(p.productUrl).toBe('https://a.example/p');
 		expect(p.extraUrls).toEqual(['https://b.example/q']);
-		expect(p.notes).toBe('Notes line\nhttps://b.example/q');
+		expect(p.notes).toBe('Notes line');
 		expect(p.name).toBe('Thing');
+	});
+
+	it('counts the enrichment routine’s re-added link to the same product once (live hoodie)', () => {
+		const p = parseTask({
+			...base,
+			description: [
+				'https://www.mitchellandness.com/en/nba/philadelphia-76ers/hoodie/o-1392+t-47038645?_ref=p-FPP:m-TS:pi-PDP_RECOMMENDATIONS_4&sku=213310120',
+				'',
+				'https://www.mitchellandness.com/en/nba/philadelphia-76ers/hoodie/o-1392+t-47038645?sku=213310120',
+				'Black Mitchell & Ness Philadelphia 76ers fleece hoodie.',
+				'size: L',
+				'price: 65-110',
+				'enriched: 2026-11-05'
+			].join('\n')
+		});
+		expect(p.productUrl).toContain('_ref=');
+		expect(p.extraUrls).toEqual([]);
+		expect(p.notes).toBe('Black Mitchell & Ness Philadelphia 76ers fleece hoodie.');
+		expect(p.size).toBe('L');
+		expect(p.aboutPriceCents).toBe(6500);
+	});
+
+	it('matches Amazon links by product ID (live ear plugs)', () => {
+		const p = parseTask({
+			...base,
+			description:
+				'[Amazon.com: Alpine MotoSafe Tour | 1 P…](https://www.amazon.com/gp/product/B06Y2BQ15R/ref=ox_sc_act_title_1?smid=A1N2X4ZOL32CTZ&psc=1)\n\nhttps://www.amazon.com/dp/B06Y2BQ15R\nReusable Alpine MotoSafe Tour earplugs that cut wind noise while riding.\nprice: 15-23'
+		});
+		expect(p.productUrl).toContain('/gp/product/B06Y2BQ15R');
+		expect(p.extraUrls).toEqual([]);
+		expect(p.notes).toBe(
+			'Reusable Alpine MotoSafe Tour earplugs that cut wind noise while riding.'
+		);
+	});
+
+	it('productKey ignores tracking codes and www, keeps what picks the product', () => {
+		expect(productKey('https://www.shop.example/p/1/?utm_source=x&color=red')).toBe(
+			productKey('https://shop.example/p/1?color=red')
+		);
+		expect(productKey('https://shop.example/p?id=1')).not.toBe(
+			productKey('https://shop.example/p?id=2')
+		);
+		expect(productKey('https://smile.amazon.com/dp/B06Y2BQ15R')).toBe('amazon:B06Y2BQ15R');
+		expect(productKey('not a url')).toBe('not a url');
 	});
 
 	it('drops a markdown product-link line from the notes (Todoist iOS paste)', () => {
@@ -108,9 +153,7 @@ describe('parseTask', () => {
 		});
 		expect(p.productUrl).toBe('https://hd.example/x');
 		expect(p.extraUrls).toEqual(['https://c.example/y', 'https://a.example/p']);
-		expect(p.notes).toBe(
-			'Get the 800LR (US) version.\nAlso at Home Depot or https://c.example/y\nhttps://a.example/p'
-		);
+		expect(p.notes).toBe('Get the 800LR (US) version.\nAlso at Home Depot or https://c.example/y');
 	});
 
 	it('a markdown link in the task name becomes the name and the product link (Safari share)', () => {
@@ -122,7 +165,7 @@ describe('parseTask', () => {
 		expect(p.name).toBe('Black Core Essentials Fleece Hoodie');
 		expect(p.productUrl).toBe('https://shop.example/hoodie');
 		expect(p.extraUrls).toEqual(['https://other.example/alt']);
-		expect(p.notes).toBe('https://other.example/alt');
+		expect(p.notes).toBe('');
 		expect(p.size).toBe('L');
 	});
 

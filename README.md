@@ -76,7 +76,8 @@ One-time setup (about 20 minutes):
    ```
 3. Secrets (`npx wrangler secret put NAME`, one at a time; see `.env.example`):
    - `TODOIST_TOKEN` – Todoist → Settings → Integrations → Developer → API token.
-   - `TODOIST_WEBHOOK_SECRET` – the client secret of the Todoist app you create below.
+   - `TODOIST_WEBHOOK_SECRET`, `TODOIST_CLIENT_ID` – the client secret and client ID of the
+     Todoist app you create below.
    - `OFFERS_API_KEY` – any long random string (`openssl rand -hex 24`); give it to the Claude routines.
    - `CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN` – from Cloudflare Access (see below); the team
      domain looks like `kutners.cloudflareaccess.com`.
@@ -116,7 +117,8 @@ Work happens on a branch and reaches `main` through a pull request.
 3. **Adding an item**: type the name, pick the section. Everything else is optional:
    - **Description**: notes, size, color. The first URL becomes the product link; any further
      URLs become extra "where to buy" entries. Links pasted on the phone arrive as
-     `[title](url)`; the site shows them as plain text and drops a line that is only the product link.
+     `[title](url)`; the site shows them as plain text. Lines that are only a link are left out of
+     the notes, and links to the same product (tracking codes aside, Amazon by product ID) count once.
    - **From Safari**: Share → Todoist on a product page makes a task named `[Page title](url)`.
      The site uses the title as the item name and the URL as the product link.
    - **Priority**: p1 = "Really want", p2 = "Would love", p3 = "Nice to have", p4 = no badge.
@@ -134,42 +136,28 @@ Work happens on a branch and reaches `main` through a pull request.
    - A task named `Profile: <Name>` is always hidden from the site. It holds that person's
      sizes and preferences for the enrichment routine.
 4. **Completing** a task removes the item from the site. **Deleting** it does the same.
-5. **Webhook** (near-instant sync): in the [Todoist App Console](https://app.todoist.com/app/settings/integrations/developer)
-   create an app, set the webhook callback URL to
-   `https://wishlist.thekutners.com/api/todoist/webhook`, tick the events `item:added`,
-   `item:updated`, `item:completed`, `item:deleted`, `item:uncompleted`, and activate the webhook.
-   Copy the app's **client secret** into `TODOIST_WEBHOOK_SECRET`
-   (`npx wrangler secret put TODOIST_WEBHOOK_SECRET --name family-wishlist`); the site verifies
-   `X-Todoist-Hmac-SHA256` with it and ignores anything that does not match. The client ID is
-   not used by the site. Without the webhook the 15-minute cron still syncs.
+5. **Webhook** (near-instant sync). Without it the 15-minute cron still syncs.
+   1. In the [Todoist App Console](https://app.todoist.com/app/settings/integrations/developer)
+      create an app and set:
+      - **OAuth redirect URL**: `https://wishlist.thekutners.com/api/todoist/oauth`
+      - **Webhook callback URL**: `https://wishlist.thekutners.com/api/todoist/webhook`
+      - **Watched events**: `item:added`, `item:updated`, `item:completed`, `item:uncompleted`,
+        `item:deleted`
+   2. Add two Worker secrets (Cloudflare → Workers & Pages → family-wishlist → Settings →
+      Variables and Secrets, or `wrangler secret put`): `TODOIST_WEBHOOK_SECRET` = the app's
+      **Client secret**, `TODOIST_CLIENT_ID` = its **Client ID**.
+   3. Open `https://wishlist.thekutners.com/api/todoist/oauth/start` once and tap **Agree**.
+      Todoist only sends webhooks for accounts that have authorized the app; the page finishes
+      that authorization and says "Todoist is connected". The token it gets is not kept.
 
-   **Connect your Todoist account once.** Todoist only sends webhooks for accounts that have
-   completed OAuth with the app, and the site has no OAuth flow of its own, so do it by hand:
-   1. Set the app's **OAuth redirect URL** to `https://wishlist.thekutners.com`. Todoist
-      rejects it with a trailing slash.
-   2. Open
-      `https://app.todoist.com/oauth/authorize?client_id=<CLIENT_ID>&scope=data:read&state=wishlist`
-      and click **Agree**. You land on the site with `?code=…&state=wishlist` in the address.
-   3. Within a few minutes (the code expires), trade the code for a token. Clicking Agree alone
-      does not start webhooks. In PowerShell (values are typed at prompts, so they stay out of
-      the command history):
-      ```powershell
-      $id   = Read-Host "Client ID"
-      $s    = Read-Host "Client secret" -AsSecureString
-      $sec  = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
-      $code = Read-Host "Code"
-      $r = Invoke-RestMethod -Method Post -Uri "https://api.todoist.com/oauth/access_token" -Body @{ client_id = $id; client_secret = $sec; code = $code }
-      if ($r.access_token) { "Connected" }
-      Remove-Variable s, sec, r
-      ```
-      The token itself is not needed afterwards. If you see `invalid_grant`, repeat step 2 for a
-      fresh code.
-   4. Check it: run `npx wrangler tail family-wishlist --format pretty`, add a task in Todoist,
-      and look for `POST …/api/todoist/webhook - Ok`.
+   The site verifies `X-Todoist-Hmac-SHA256` with the client secret and ignores anything that
+   does not match. Opening the webhook URL in a browser shows "GET method not allowed"; that
+   is expected.
 
-   Removing the app under Todoist **Settings → Integrations** stops the webhooks. The site uses
-   `wishlist.thekutners.com`; its `workers.dev` address is intentionally off (requests there get
-   Cloudflare error 1042).
+   Check it: run `npx wrangler tail family-wishlist --format pretty`, add a task in Todoist, and
+   look for `POST …/api/todoist/webhook - Ok`. Removing the app under Todoist **Settings →
+   Integrations** stops the webhooks. The site uses `wishlist.thekutners.com`; its `workers.dev`
+   address is intentionally off (requests there get Cloudflare error 1042).
 
 The sync is Todoist → site for everything except purchase state. When a guest marks an item
 the site adds `@bought` and comments "Marked purchased on the wishlist"; undo removes the label

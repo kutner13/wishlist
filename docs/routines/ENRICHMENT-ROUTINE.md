@@ -31,7 +31,9 @@ Do this:
    Prefer the brand's own site, then a major retailer. For non-product wishes
    (event tickets, experiences, gift cards) link the official page.
 4. Update the task description by APPENDING, after a blank line, exactly:
-   - the product URL on its own line
+   - the product URL on its own line, only if the description has no link yet. If the
+     owner already put a link in, keep it and do not add another one, not even a cleaner
+     copy of the same page.
    - one sentence describing the item (max 20 words)
    - `size: …` and/or `color: …` when the profile makes them clear
    - `price: <whole dollars>` (typical price, or a range like 80-120)

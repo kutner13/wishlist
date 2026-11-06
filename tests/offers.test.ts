@@ -96,6 +96,18 @@ describe('refreshPages', () => {
 		expect(s.imagesStored).toBe(0);
 		expect((await db.first<ItemRow>('SELECT * FROM items WHERE id = ?', id))!.image_key).toBeNull();
 	});
+
+	it('asks a blocking store once a day, not on every 15-minute sync', async () => {
+		// Live case: Mitchell & Ness answers 403, so the item never gets an image.
+		const db = testDb();
+		await insertItem(db, { name: 'Sixers Hoody', product_url: 'https://www.amazon.com/dp/1' });
+		const f = fetcher({ blocked: ['amazon'] });
+		const at = (iso: string) => refreshPages(db, f, memoryImageStore(), { now: new Date(iso) });
+		expect((await at('2026-11-05T03:30:00Z')).checked).toBe(1);
+		expect((await at('2026-11-05T03:45:00Z')).checked).toBe(0);
+		expect((await at('2026-11-05T20:00:00Z')).checked).toBe(0);
+		expect((await at('2026-11-06T03:31:00Z')).checked).toBe(1);
+	});
 });
 
 describe('offers and best price', () => {

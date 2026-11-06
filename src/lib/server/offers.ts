@@ -110,10 +110,10 @@ export interface RefreshSummary {
 }
 
 /**
- * Fetches product pages for items that have a URL and either no image or no page
- * check in the last PAGE_REFRESH_HOURS (or all of them with `force`). A failing page
- * never throws; the item's page_checked_at is still bumped so one bad page can't
- * stall every sync.
+ * Fetches product pages for items that have a URL and no page check in the last
+ * PAGE_REFRESH_HOURS (or all of them with `force`). A failing page never throws; the
+ * item's page_checked_at is still bumped, so a store that blocks the fetch (and so never
+ * yields an image) is asked once a day, not on every 15-minute sync.
  */
 export async function refreshPages(
 	db: Db,
@@ -127,7 +127,7 @@ export async function refreshPages(
 		opts.force
 			? 'SELECT * FROM items WHERE removed_at IS NULL AND product_url IS NOT NULL ORDER BY updated_at DESC LIMIT ?'
 			: `SELECT * FROM items WHERE removed_at IS NULL AND product_url IS NOT NULL
-			   AND (image_key IS NULL OR page_checked_at IS NULL OR page_checked_at < ?)
+			   AND (page_checked_at IS NULL OR page_checked_at < ?)
 			   ORDER BY page_checked_at IS NOT NULL, page_checked_at LIMIT ?`,
 		...(opts.force ? [opts.limit ?? 200] : [cutoff, opts.limit ?? 40])
 	);
