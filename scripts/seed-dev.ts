@@ -26,6 +26,8 @@ interface SeedItem {
 	enriched?: string;
 	bought?: boolean;
 	hidden?: boolean;
+	/** Todoist task id of the parent task (a subtask). */
+	parent?: string;
 	daysAgo?: number;
 	offers?: {
 		source: 'page' | 'claude' | 'manual';
@@ -210,6 +212,20 @@ const items: SeedItem[] = [
 		daysAgo: 1,
 		offers: [{ source: 'claude', store: 'Best Buy', price: 3800, days: 1 }]
 	},
+	// A parent task with subtasks: the parent is a section heading, not a wish.
+	{ person: 3, task: 'r8', name: 'Pool bag', daysAgo: 3 },
+	{ person: 3, task: 'r9', name: 'Swim goggles', parent: 'r8', desire: 2, price: 1500, daysAgo: 3 },
+	{ person: 3, task: 'r10', name: 'Swim fins', parent: 'r8', price: 2500, daysAgo: 3 },
+	{ person: 3, task: 'r11', name: 'Shark towel clip', parent: 'r8', daysAgo: 3 },
+	{
+		person: 3,
+		task: 'r12',
+		name: 'Captain Underpants box set',
+		desire: 3,
+		price: 4000,
+		cats: ['books'],
+		daysAgo: 2
+	},
 	{
 		person: 3,
 		task: 'r7',
@@ -281,11 +297,12 @@ for (const it of items) {
 	id++;
 	const created = iso(it.daysAgo ?? 1);
 	sql.push(
-		`INSERT INTO items (id, person_id, todoist_task_id, name, notes, product_url, desire, about_price_cents, qty, occasion, categories, size, color, enriched_at, hidden, bought_in_todoist, created_at, updated_at, page_checked_at) VALUES (` +
+		`INSERT INTO items (id, person_id, todoist_task_id, parent_todoist_task_id, name, notes, product_url, desire, about_price_cents, qty, occasion, categories, size, color, enriched_at, hidden, bought_in_todoist, created_at, updated_at, page_checked_at) VALUES (` +
 			[
 				id,
 				it.person,
 				it.task,
+				it.parent ?? null,
 				it.name,
 				it.notes ?? '',
 				it.url ?? null,

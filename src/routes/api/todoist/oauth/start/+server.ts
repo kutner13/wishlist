@@ -14,5 +14,6 @@ export const GET: RequestHandler = async () => {
 			503
 		);
 	}
-	redirect(302, authorizeUrl(clientId, await oauthState(clientSecret)));
+	// Todoist is an external origin; Kit blocks external redirects unless told they are expected.
+	redirect(302, authorizeUrl(clientId, await oauthState(clientSecret)), { external: true });
 };

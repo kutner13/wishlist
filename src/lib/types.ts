@@ -13,6 +13,8 @@ export interface ItemRow {
 	id: number;
 	person_id: number;
 	todoist_task_id: string;
+	/** Todoist parent task id when this task is a subtask. */
+	parent_todoist_task_id: string | null;
 	name: string;
 	notes: string;
 	product_url: string | null;
@@ -93,7 +95,10 @@ export interface ItemView {
 	aboutPriceCents: number | null;
 	qty: number;
 	occasion: Occasion;
+	/** Label keys; a subtask with no labels gets its parent task's name. */
 	categories: string[];
+	/** Name of the Todoist parent task when this is a subtask. */
+	parentName: string | null;
 	size: string | null;
 	color: string | null;
 	enrichedAt: string | null;

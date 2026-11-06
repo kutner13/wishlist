@@ -169,6 +169,15 @@ export function minutesToNextQuarter(nowIso: string): number {
 	return Math.max(1, Math.round((Math.ceil((now + 1) / quarter) * quarter - now) / 60_000));
 }
 
+/**
+ * Display name for a category key: `motorcycle` → "Motorcycle", `road-supplies` or
+ * `road_supplies` → "Road supplies". A parent task's name ("Road Supplies") keeps its case.
+ */
+export function categoryLabel(key: string): string {
+	const s = key.replace(/[-_]+/g, ' ').trim();
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function shortUrl(url: string, max = 40): string {
 	const s = url.replace(/^https?:\/\/(www\.)?/, '');
 	return s.length > max ? s.slice(0, max - 1) + '…' : s;

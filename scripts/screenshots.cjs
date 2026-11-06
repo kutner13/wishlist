@@ -25,8 +25,9 @@ async function shoot(page, name, opts = {}) {
 		await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
 		await shoot(page, `home-${label}`);
 
+		// Robbie's seeded list has themed sections (Toys, Pool bag, Books, Everything else).
 		await page.goto(`${BASE}/robbie`, { waitUntil: 'networkidle' });
-		await shoot(page, `robbie-list-${label}`, { fullPage: label === 'mobile' });
+		await shoot(page, `robbie-list-${label}`, { fullPage: true });
 
 		// Open the LEGO card (first item) as a sheet via client-side navigation.
 		await page.click('a.card:has-text("LEGO Technic")');

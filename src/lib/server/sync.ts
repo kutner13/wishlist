@@ -1,7 +1,10 @@
 // Todoist -> site sync (SPEC §4). Upserts tasks by Todoist id, soft-deletes missing ones,
 // mirrors @bought/@hidden, and turns extra description URLs into manual offers.
+// Subtasks keep their parent's id; whether a parent is shown (no active children) and what
+// category a child inherits are decided at read time in queries.ts, so they stay right when
+// children are completed or deleted.
 import { PEOPLE, TODOIST_PROJECT_NAME } from '#lib/config';
-import { hostnameOf, parseTask } from '#lib/parse';
+import { hostnameOf, parseTask, productKey } from '#lib/parse';
 import { mapSections } from '#lib/people';
 import type { Db } from './db';
 import { recomputeBest } from './offers';
@@ -52,8 +55,8 @@ export async function syncFromTodoist(
 		if (!parsed.name) continue;
 		seen.add(task.id);
 		upserted++;
-		const existing = await db.first<{ id: number }>(
-			'SELECT id FROM items WHERE todoist_task_id = ?',
+		const existing = await db.first<{ id: number; product_url: string | null }>(
+			'SELECT id, product_url FROM items WHERE todoist_task_id = ?',
 			task.id
 		);
 		const fields = [
@@ -71,6 +74,7 @@ export async function syncFromTodoist(
 			parsed.enrichedAt,
 			parsed.hidden ? 1 : 0,
 			parsed.boughtInTodoist ? 1 : 0,
+			task.parent_id || null,
 			now
 		];
 		let itemId: number;
@@ -79,19 +83,25 @@ export async function syncFromTodoist(
 			await db.run(
 				`UPDATE items SET person_id = ?, name = ?, notes = ?, product_url = ?, desire = ?,
 				 about_price_cents = ?, qty = ?, occasion = ?, categories = ?, size = ?, color = ?,
-				 enriched_at = ?, hidden = ?, bought_in_todoist = ?, updated_at = ?, removed_at = NULL,
-				 page_checked_at = CASE WHEN product_url IS ? THEN page_checked_at ELSE NULL END
+				 enriched_at = ?, hidden = ?, bought_in_todoist = ?, parent_todoist_task_id = ?,
+				 updated_at = ?, removed_at = NULL
 				 WHERE id = ?`,
 				...fields,
-				parsed.productUrl,
 				itemId
 			);
+			if (!sameProduct(existing.product_url, parsed.productUrl)) {
+				// The link points somewhere else: the old page's price is stale, and the new page
+				// must be fetched on this run rather than when the last check ages out.
+				await db.run("DELETE FROM offers WHERE item_id = ? AND source = 'page'", itemId);
+				await db.run('UPDATE items SET page_checked_at = NULL WHERE id = ?', itemId);
+				await recomputeBest(db, itemId);
+			}
 		} else {
 			const r = await db.run(
 				`INSERT INTO items (person_id, name, notes, product_url, desire, about_price_cents, qty,
-				 occasion, categories, size, color, enriched_at, hidden, bought_in_todoist, updated_at,
-				 todoist_task_id, created_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 occasion, categories, size, color, enriched_at, hidden, bought_in_todoist,
+				 parent_todoist_task_id, updated_at, todoist_task_id, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				...fields,
 				task.id,
 				task.added_at ?? now
@@ -125,6 +135,12 @@ export async function syncFromTodoist(
 		upserted,
 		removed
 	};
+}
+
+/** Same product link, tracking codes aside (null equals only null). */
+function sameProduct(a: string | null, b: string | null): boolean {
+	if (a === null || b === null) return a === b;
+	return productKey(a) === productKey(b);
 }
 
 /** Replaces the item's manual offers with one per extra URL (store = hostname). */

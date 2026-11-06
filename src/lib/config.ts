@@ -39,6 +39,13 @@ export const HINT_KEYS = ['price', 'qty', 'occasion', 'size', 'color', 'enriched
 /** Limits for the daily Claude enrichment routine (published in /api/enrich/manifest). */
 export const ENRICH_MAX_ITEMS_PER_RUN = 20;
 export const ENRICH_MIN_TASK_AGE_MINUTES = 120;
+/** Categories the routine may add: new labels per run, items a new label must cover, uncategorized items it may look at per list. */
+export const ENRICH_MAX_NEW_CATEGORIES_PER_RUN = 2;
+export const ENRICH_MIN_ITEMS_FOR_NEW_CATEGORY = 2;
+export const ENRICH_MAX_UNCATEGORIZED_PER_LIST = 20;
+
+/** A category gets its own section on the person page once it holds this many shown items. */
+export const MIN_ITEMS_PER_CATEGORY_SECTION = 2;
 
 /** Todoist API priority (4 = highest) -> desire level (1 = really want ... 4 = none). */
 export const DESIRE_LABELS: Record<number, string> = {

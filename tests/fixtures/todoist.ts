@@ -62,6 +62,31 @@ export const tasks: TodoistTask[] = [
 		section_id: 's-logan'
 	}),
 	task({ id: 't-socks', content: 'Running socks (3-pack)', priority: 2, section_id: 's-kev' }),
+	// Kevin's real shape: a parent task with subtasks, and loose motorcycle items.
+	task({ id: 't-road', content: 'Road Supplies', section_id: 's-kev' }),
+	task({ id: 't-toolkit', content: 'Roadside tool kit', section_id: 's-kev', parent_id: 't-road' }),
+	task({ id: 't-tire', content: 'Flat Tire Kit', section_id: 's-kev', parent_id: 't-road' }),
+	task({
+		id: 't-jump',
+		content: 'Battery Jump Pack',
+		section_id: 's-kev',
+		parent_id: 't-road',
+		labels: ['motorcycle']
+	}),
+	task({
+		id: 't-fuses',
+		content: 'Extra Fuses',
+		section_id: 's-kev',
+		parent_id: 't-road',
+		labels: ['hidden']
+	}),
+	task({ id: 't-bags', content: 'Saddlebags', section_id: 's-kev', labels: ['motorcycle'] }),
+	task({
+		id: 't-headset',
+		content: 'Bluetooth headset',
+		section_id: 's-kev',
+		labels: ['motorcycle']
+	}),
 	task({ id: 't-paint', content: 'Paint the fence', section_id: 's-house' }),
 	task({ id: 't-nosection', content: 'Lightbulbs', section_id: null })
 ];
