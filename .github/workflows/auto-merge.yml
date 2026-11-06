@@ -1,0 +1,59 @@
+name: Auto-merge
+
+# When the Deploy workflow's checks finish green on a pull request, merge it and start a deploy.
+#
+# Rules (all must hold, otherwise nothing happens and the run says why):
+#   - the checks passed
+#   - the pull request is open, not a draft, targets main, and comes from this repository
+#   - it was opened by the repository owner (Claude sessions open PRs as the owner)
+#   - it does not carry the "hold" label
+#
+# A merge made with the workflow token does not itself trigger the Deploy workflow's push run,
+# so this workflow dispatches Deploy on main explicitly after merging.
+on:
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  merge:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Find the pull request for this commit
+        id: pr
+        run: |
+          pr=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/pulls" \
+            --jq '[.[] | select(.state == "open" and .base.ref == "main")][0]')
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then
+            echo "No open pull request into main for $HEAD_SHA; nothing to merge."
+            echo "number=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          number=$(echo "$pr" | jq -r .number)
+          draft=$(echo "$pr" | jq -r .draft)
+          author=$(echo "$pr" | jq -r .user.login)
+          fork=$(echo "$pr" | jq -r '.head.repo.fork')
+          hold=$(echo "$pr" | jq -r '[.labels[].name] | index("hold") != null')
+          echo "PR #$number: draft=$draft author=$author fork=$fork hold=$hold"
+          if [ "$draft" = "true" ]; then echo "Draft; not merging."; exit 0; fi
+          if [ "$author" != "$OWNER" ]; then echo "Not opened by $OWNER; not merging."; exit 0; fi
+          if [ "$fork" = "true" ]; then echo "From a fork; not merging."; exit 0; fi
+          if [ "$hold" = "true" ]; then echo "Labelled hold; not merging."; exit 0; fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+      - name: Merge
+        if: steps.pr.outputs.number != ''
+        run: |
+          gh pr merge "${{ steps.pr.outputs.number }}" --repo "${{ github.repository }}" --merge \
+            --match-head-commit "$HEAD_SHA"
+      - name: Deploy main
+        if: steps.pr.outputs.number != ''
+        run: gh workflow run deploy.yml --repo "${{ github.repository }}" --ref main

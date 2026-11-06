@@ -107,6 +107,13 @@ Secrets and variables → Actions → New repository secret):
 Until both exist, pushes to `main` are checked but not deployed, with a warning on the run.
 Work happens on a branch and reaches `main` through a pull request.
 
+**Auto-merge.** `.github/workflows/auto-merge.yml` merges a pull request as soon as its checks
+pass, then starts a deploy of `main`. It only merges a PR that is open, not a draft, into `main`,
+from this repository, opened by the repository owner, and not labelled `hold`. To keep a PR
+from merging, leave it as a draft or add the `hold` label. The merge is made with the workflow's
+own token, which does not trigger the push run of Deploy, so Auto-merge dispatches Deploy
+explicitly. To turn auto-merge off, delete that workflow file.
+
 ## Todoist setup
 
 1. **Share the project**: open the Purchases project in Todoist → share → invite Casey. She can
