@@ -154,6 +154,11 @@ Work happens on a branch and reaches `main` through a pull request.
    does not match. Opening the webhook URL in a browser shows "GET method not allowed"; that
    is expected.
 
+   Check it: run `npx wrangler tail family-wishlist --format pretty`, add a task in Todoist, and
+   look for `POST …/api/todoist/webhook - Ok`. Removing the app under Todoist **Settings →
+   Integrations** stops the webhooks. The site uses `wishlist.thekutners.com`; its `workers.dev`
+   address is intentionally off (requests there get Cloudflare error 1042).
+
 The sync is Todoist → site for everything except purchase state. When a guest marks an item
 the site adds `@bought` and comments "Marked purchased on the wishlist"; undo removes the label
 and comments. For `qty: N` items the label is added only when all N are taken. If Kevin adds or
