@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ItemCard from '#lib/components/ItemCard.svelte';
-	import { listUrl } from '#lib/format';
+	import { categoryLabel, listUrl } from '#lib/format';
 	let { data, children } = $props();
 
 	const sheetOpen = $derived(Boolean(page.params.item));
@@ -49,7 +49,7 @@
 				<select name="cat" onchange={submitOnChange}>
 					<option value="">Category</option>
 					{#each data.categories as c (c)}
-						<option value={c} selected={data.filters.category === c}>{c}</option>
+						<option value={c} selected={data.filters.category === c}>{categoryLabel(c)}</option>
 					{/each}
 				</select>
 			</label>
@@ -97,6 +97,22 @@
 				<a href="{data.base}/{data.person.slug}" data-sveltekit-noscroll>Clear filters</a>
 			{/if}
 		</p>
+	{:else if data.groups}
+		{#each data.groups as group (group.key ?? '')}
+			<section class="group">
+				<h2 class="group-hd">
+					<span class="group-name"
+						>{group.key === null ? 'Everything else' : categoryLabel(group.key)}</span
+					>
+					<span class="group-count">{group.available} available</span>
+				</h2>
+				<div class="items">
+					{#each group.items as item (item.id)}
+						<ItemCard {item} href="{data.base}/{data.person.slug}/{item.id}{data.search}" />
+					{/each}
+				</div>
+			</section>
+		{/each}
 	{:else}
 		<div class="items">
 			{#each data.items as item (item.id)}
@@ -189,6 +205,32 @@
 	.items {
 		display: grid;
 		gap: 12px;
+	}
+	.group + .group {
+		margin-top: 22px;
+	}
+	.group-hd {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 8px;
+		margin: 0 0 8px;
+		padding: 0 4px;
+		font-family: var(--serif);
+		font-weight: 500;
+		font-size: 17px;
+		line-height: 1.2;
+		color: var(--ink-2);
+	}
+	.group-name {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.group-count {
+		font-family: var(--sans);
+		font-size: 12px;
+		color: var(--ink-3);
+		white-space: nowrap;
 	}
 	.empty {
 		background: var(--surface);

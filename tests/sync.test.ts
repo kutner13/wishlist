@@ -11,7 +11,7 @@ describe('syncFromTodoist', () => {
 		const db = testDb();
 		const summary = await syncFromTodoist(db, fakeSource(), { now: NOW });
 		expect(summary.sectionsMatched).toBe(4);
-		expect(summary.upserted).toBe(6);
+		expect(summary.upserted).toBe(13);
 		expect(summary.removed).toBe(0);
 
 		const items = await db.all<ItemRow>('SELECT * FROM items ORDER BY id');
@@ -123,6 +123,64 @@ describe('syncFromTodoist', () => {
 		expect(towel!.person_id).toBe(4); // moved to Logan's section
 	});
 
+	it('drops the old page price and refetches when the product link changes', async () => {
+		const db = testDb();
+		await syncFromTodoist(db, fakeSource(), { now: NOW });
+		const lego = (await db.first<ItemRow>("SELECT * FROM items WHERE todoist_task_id = 't-lego'"))!;
+		// A page price from the old link, plus a routine price that must survive.
+		await db.run(
+			`INSERT INTO offers (item_id, source, store, price_cents, currency, url, fetched_at, is_best)
+			 VALUES (?, 'page', 'lego.com', 4499, 'USD', ?, ?, 1), (?, 'claude', 'Target', 4700, 'USD', 'https://t', ?, 0)`,
+			lego.id,
+			lego.product_url,
+			NOW,
+			lego.id,
+			NOW
+		);
+		await db.run('UPDATE items SET page_checked_at = ? WHERE id = ?', NOW, lego.id);
+
+		// Same product with a tracking code: nothing happens.
+		const tracked = tasks.map((t) =>
+			t.id === 't-lego'
+				? {
+						...t,
+						description: t.description.replace('rally-car-42077', 'rally-car-42077?utm_source=x')
+					}
+				: t
+		);
+		await syncFromTodoist(db, fakeSource({ tasks: tracked }), { now: NOW });
+		let after = (await db.first<ItemRow>('SELECT * FROM items WHERE id = ?', lego.id))!;
+		expect(after.page_checked_at).toBe(NOW);
+		expect(
+			await db.all<OfferRow>("SELECT * FROM offers WHERE item_id = ? AND source = 'page'", lego.id)
+		).toHaveLength(1);
+
+		// A different product: the page offer goes, the routine offer becomes best, page refetched.
+		const changed = tasks.map((t) =>
+			t.id === 't-lego'
+				? {
+						...t,
+						description: t.description.replace(
+							'https://www.lego.com/en-us/product/rally-car-42077',
+							'https://www.lego.com/en-us/product/monster-jam-42150'
+						)
+					}
+				: t
+		);
+		await syncFromTodoist(db, fakeSource({ tasks: changed }), { now: NOW });
+		after = (await db.first<ItemRow>('SELECT * FROM items WHERE id = ?', lego.id))!;
+		expect(after.product_url).toBe('https://www.lego.com/en-us/product/monster-jam-42150');
+		expect(after.page_checked_at).toBeNull();
+		const offers = await db.all<OfferRow>(
+			'SELECT * FROM offers WHERE item_id = ? ORDER BY id',
+			lego.id
+		);
+		expect(offers.map((o) => [o.source, o.is_best])).toEqual([
+			['manual', 0],
+			['claude', 1]
+		]);
+	});
+
 	it('resets page_checked_at when the product URL changes', async () => {
 		const db = testDb();
 		await syncFromTodoist(db, fakeSource(), { now: NOW });
@@ -142,6 +200,23 @@ describe('syncFromTodoist', () => {
 		).toBeNull();
 	});
 
+	it('stores the parent task id of subtasks and keeps it current', async () => {
+		const db = testDb();
+		await syncFromTodoist(db, fakeSource(), { now: NOW });
+		const byTask = async (id: string) =>
+			(await db.first<ItemRow>('SELECT * FROM items WHERE todoist_task_id = ?', id))!;
+		expect((await byTask('t-road')).parent_todoist_task_id).toBeNull();
+		expect((await byTask('t-toolkit')).parent_todoist_task_id).toBe('t-road');
+		// Labels stay labels; inheriting the parent's name happens when the item is read.
+		expect(JSON.parse((await byTask('t-toolkit')).categories)).toEqual([]);
+		expect(JSON.parse((await byTask('t-jump')).categories)).toEqual(['motorcycle']);
+
+		// Owner un-nests a subtask: it stops being a child.
+		const edited = tasks.map((t) => (t.id === 't-toolkit' ? { ...t, parent_id: null } : t));
+		await syncFromTodoist(db, fakeSource({ tasks: edited }), { now: NOW });
+		expect((await byTask('t-toolkit')).parent_todoist_task_id).toBeNull();
+	});
+
 	it('fails loudly when the project is missing', async () => {
 		const db = testDb();
 		const src = fakeSource();
@@ -156,6 +231,6 @@ describe('syncFromTodoist', () => {
 			throw new Error('should not be called');
 		};
 		const s = await syncFromTodoist(db, src, { projectId: '6hRR4gXPcqj5Jm3w', now: NOW });
-		expect(s.upserted).toBe(6);
+		expect(s.upserted).toBe(13);
 	});
 });

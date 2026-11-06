@@ -1,12 +1,32 @@
 // Read models for the guest pages and admin. All the SQL the pages need is here.
-import { DESIRE_LABELS, MAX_OFFERS, PEOPLE, PRICE_BANDS } from '#lib/config';
+import {
+	DESIRE_LABELS,
+	MAX_OFFERS,
+	MIN_ITEMS_PER_CATEGORY_SECTION,
+	PEOPLE,
+	PRICE_BANDS
+} from '#lib/config';
 import type { ItemRow, ItemView, OfferRow, OfferView, PersonRow } from '#lib/types';
 import type { Db } from './db';
 
-type ItemWithCount = ItemRow & { purchased_count: number };
+type ItemWithCount = ItemRow & {
+	purchased_count: number;
+	active_children: number;
+	parent_name: string | null;
+};
 
-const ITEM_SELECT = `SELECT i.*, (SELECT COUNT(*) FROM purchases p WHERE p.item_id = i.id AND p.released_at IS NULL) AS purchased_count
+/** Subtasks of `i` that are still on the site. A parent with any is a group heading, not a wish. */
+const ACTIVE_CHILDREN = `(SELECT COUNT(*) FROM items c WHERE c.parent_todoist_task_id = i.todoist_task_id
+	AND c.removed_at IS NULL AND c.hidden = 0)`;
+
+const ITEM_SELECT = `SELECT i.*,
+	(SELECT COUNT(*) FROM purchases p WHERE p.item_id = i.id AND p.released_at IS NULL) AS purchased_count,
+	${ACTIVE_CHILDREN} AS active_children,
+	(SELECT p.name FROM items p WHERE p.todoist_task_id = i.parent_todoist_task_id) AS parent_name
 	FROM items i`;
+
+/** Rows that are wishes on the site: not removed, not hidden, not a parent of active subtasks. */
+export const WISH_WHERE = `i.removed_at IS NULL AND i.hidden = 0 AND ${ACTIVE_CHILDREN} = 0`;
 
 export async function loadPeople(db: Db): Promise<PersonRow[]> {
 	return db.all<PersonRow>('SELECT * FROM people ORDER BY sort_order');
@@ -45,7 +65,8 @@ async function offersFor(db: Db, itemIds: number[]): Promise<Map<number, OfferVi
 	return map;
 }
 
-function parseCategories(json: string): string[] {
+/** The `categories` column (JSON array of label names) as a list; malformed JSON reads as none. */
+export function parseCategories(json: string): string[] {
 	try {
 		const v = JSON.parse(json);
 		return Array.isArray(v) ? v.map(String) : [];
@@ -57,7 +78,9 @@ function parseCategories(json: string): string[] {
 function toView(row: ItemWithCount, personSlug: string, offers: OfferView[]): ItemView {
 	const best = offers.find((o) => o.isBest) ?? null;
 	const purchased = row.bought_in_todoist === 1 || row.purchased_count >= row.qty;
-	const categories = parseCategories(row.categories);
+	const labels = parseCategories(row.categories);
+	// A subtask without labels belongs to its parent's group ("Road Supplies").
+	const categories = labels.length === 0 && row.parent_name ? [row.parent_name] : labels;
 	return {
 		id: row.id,
 		personSlug,
@@ -71,6 +94,7 @@ function toView(row: ItemWithCount, personSlug: string, offers: OfferView[]): It
 		qty: row.qty,
 		occasion: row.occasion,
 		categories,
+		parentName: row.parent_name,
 		size: row.size,
 		color: row.color,
 		enrichedAt: row.enriched_at,
@@ -85,11 +109,11 @@ function toView(row: ItemWithCount, personSlug: string, offers: OfferView[]): It
 	};
 }
 
-/** All visible (not hidden, not removed) items for one person, unfiltered. */
+/** All visible (not hidden, not removed, not a parent of subtasks) items for one person, unfiltered. */
 export async function loadPersonItems(db: Db, personId: number): Promise<ItemView[]> {
 	const person = PEOPLE.find((p) => p.id === personId)!;
 	const rows = await db.all<ItemWithCount>(
-		`${ITEM_SELECT} WHERE i.person_id = ? AND i.removed_at IS NULL AND i.hidden = 0 ORDER BY i.id`,
+		`${ITEM_SELECT} WHERE i.person_id = ? AND ${WISH_WHERE} ORDER BY i.id`,
 		personId
 	);
 	const offers = await offersFor(
@@ -101,7 +125,7 @@ export async function loadPersonItems(db: Db, personId: number): Promise<ItemVie
 
 export async function loadItem(db: Db, id: number): Promise<ItemView | null> {
 	const row = await db.first<ItemWithCount>(`${ITEM_SELECT} WHERE i.id = ?`, id);
-	if (!row || row.hidden === 1) return null;
+	if (!row || row.hidden === 1 || row.active_children > 0) return null;
 	const person = PEOPLE.find((p) => p.id === row.person_id)!;
 	const offers = await offersFor(db, [row.id]);
 	return toView(row, person.slug, offers.get(row.id) ?? []);
@@ -144,6 +168,42 @@ export function applyFilters(items: ItemView[], f: ListFilters): ItemView[] {
 	else if (f.sort === 'newest')
 		out = out.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id);
 	else out = out.sort((a, b) => a.desire - b.desire || price(a) - price(b) || a.id - b.id);
+	return out;
+}
+
+export interface ItemGroup {
+	/** Raw category key (label or parent task name). Null for "Everything else". */
+	key: string | null;
+	items: ItemView[];
+	/** Items in the group not yet purchased. */
+	available: number;
+}
+
+/**
+ * Splits a sorted list into one section per category that holds at least
+ * MIN_ITEMS_PER_CATEGORY_SECTION items (largest first), plus "Everything else" for the rest.
+ * Returns null when no category is that big, so the page renders the flat list.
+ * An item sits in its first category only, the one its card shows.
+ */
+export function groupByCategory(items: ItemView[]): ItemGroup[] | null {
+	const byKey = new Map<string, ItemView[]>();
+	for (const it of items) {
+		const key = it.categories[0];
+		if (key !== undefined) byKey.set(key, [...(byKey.get(key) ?? []), it]);
+	}
+	const sections = [...byKey.entries()]
+		.filter(([, list]) => list.length >= MIN_ITEMS_PER_CATEGORY_SECTION)
+		.sort(([a, la], [b, lb]) => lb.length - la.length || a.localeCompare(b));
+	if (sections.length === 0) return null;
+	const grouped = new Set(sections.flatMap(([, list]) => list));
+	const rest = items.filter((it) => !grouped.has(it));
+	const group = (key: string | null, list: ItemView[]): ItemGroup => ({
+		key,
+		items: list,
+		available: list.filter((it) => !it.purchased).length
+	});
+	const out = sections.map(([key, list]) => group(key, list));
+	if (rest.length) out.push(group(null, rest));
 	return out;
 }
 

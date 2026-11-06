@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatPrice } from '#lib/format';
+	import { categoryLabel, formatPrice } from '#lib/format';
 	import type { ItemView } from '#lib/types';
 	let { item, href }: { item: ItemView; href: string } = $props();
 	const partial = $derived(item.qty > 1 && item.purchasedCount > 0 && !item.purchased);
@@ -28,7 +28,7 @@
 				<span class="price none">—</span>
 			{/if}
 			{#if item.categories.length}
-				<span class="cat">{item.categories[0]}</span>
+				<span class="cat">{categoryLabel(item.categories[0])}</span>
 			{/if}
 		</div>
 		<div class="foot">

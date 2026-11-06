@@ -2,8 +2,8 @@
 
 > This file is served by the site at `GET /api/enrich/instructions`. The JSON at
 > `GET /api/enrich/manifest` is authoritative for limits (items per run, minimum task
-> age), endpoint URLs, hint keys, people/section aliases and control labels: if a number
-> here and the manifest disagree, follow the manifest. The routine's scheduled-task
+> age), endpoint URLs, hint keys, people/section aliases, control labels and the category
+> limits: if a number here and the manifest disagree, follow the manifest. The routine's scheduled-task
 > prompt is only a bootstrap that fetches both; edit this file and deploy to change
 > the routine.
 
@@ -39,13 +39,36 @@ Do this:
    - `price: <whole dollars>` (typical price, or a range like 80-120)
    - `enriched: <today YYYY-MM-DD>`; add ` (unsure)` if you had to guess.
    Never change the task name, never delete or rewrite existing text, never
-   set due dates, labels, or priority.
+   set due dates or priority. Labels only as step 6 allows.
 5. If SITE_URL and OFFERS_API_KEY are set, for each enriched item also POST to
    `{SITE_URL}/api/offers` with `Authorization: Bearer {OFFERS_API_KEY}` and
    body `{"items":[{"todoist_task_id":"<id>","offers":[{"store":"Target",
    "price_cents":4200,"currency":"USD","url":"https://…"}]}]}` with up to 3
    reputable stores, best price first.
-6. Finish with a 5-line summary: items enriched, items skipped as unsure, and
-   anything the owner should fix. Do not comment on Todoist tasks.
+6. Categories (when the manifest's `categories.enabled` is true). Labels other
+   than the control labels are the site's categories; a person's page groups
+   items by them ("Motorcycle", "Kitchen"). For each task you touched in step 4,
+   and, once per run, for up to `categories.max_uncategorized_per_list` tasks on
+   each person's list that have no category label (even ones already enriched),
+   you may add exactly ONE label when the item clearly fits a theme. Rules:
+   - Prefer a label already in use on that person's list: `categories.in_use`
+     in the manifest lists them with counts (`pending_url` items carry their
+     current `categories`).
+   - Create a new label only if it would cover at least
+     `categories.min_items_for_new` items on that person's list, and create at
+     most `categories.max_new_per_run` new labels per run.
+   - Never remove or rename a label. A label the owner set by hand stays.
+   - Never use the manifest's `control_labels` (`bought`, `hidden`).
+   - Never label a Profile task.
+   - Never label a subtask (an item whose `parent_name` is set): it inherits
+     its parent task's name as its category.
+   - Labels are short, lowercase, one word or hyphenated: `motorcycle`,
+     `kitchen`, `home-automation`, `books`.
+   - Apply a label by updating the task's `labels` array: re-read the task
+     first, append the label to what is there, and write the whole array back
+     (Todoist connector, or `POST /api/v1/tasks/<id>` with `{"labels": [...]}`).
+7. Finish with a 5-line summary: items enriched, items skipped as unsure,
+   labels added (and any new label created), and anything the owner should
+   fix. Do not comment on Todoist tasks.
 
 Never buy anything, never create accounts, never touch other projects.

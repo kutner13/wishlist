@@ -35,7 +35,8 @@ Code map:
 | `src/lib/server/offers.ts`    | Best-price bookkeeping, `/api/offers` writes, product-page fetch      |
 | `src/lib/server/pagemeta.ts`  | og:image / og:title / JSON-LD price parser                            |
 | `src/lib/server/access.ts`    | Cloudflare Access JWT check                                           |
-| `src/lib/server/queries.ts`   | Read models for pages, filters and sorting                            |
+| `src/lib/server/queries.ts`   | Read models for pages, filters, sorting and category sections         |
+| `src/lib/server/enrich.ts`    | Enrichment manifest and pending list for the Claude routine           |
 | `src/hooks.server.ts`         | Guest-slug enforcement, admin auth, device cookie, `noindex` header   |
 | `src/worker/index.ts`         | Worker entry: cron handler and the `thekutners.com/list*` redirect    |
 | `src/routes/`                 | Pages and API endpoints                                               |
@@ -124,6 +125,11 @@ Work happens on a branch and reaches `main` through a pull request.
    - **Priority**: p1 = "Really want", p2 = "Would love", p3 = "Nice to have", p4 = no badge.
    - **Labels** are categories (`@toys`, `@books`, `@clothes`), except two control labels:
      `@bought` (purchased; the site sets it too) and `@hidden` (keep in Todoist, don't show).
+     Shown as "Toys"; `@home-automation` shows as "Home automation".
+   - **Subtasks**: a task with subtasks ("Road Supplies" with "Flat Tire Kit", "Extra Fuses")
+     is a group, not a wish. The subtasks are the wishes; those without a label get the
+     parent's name as their category. Once every subtask is completed or deleted, the parent
+     is an ordinary wish again.
    - **Hints**, one per line anywhere in the description, forgiving of case and spacing:
      ```
      price: 45            shown as "~$45" until a real price is found
@@ -179,9 +185,9 @@ Two scheduled tasks in Claude, both authenticating with `Authorization: Bearer <
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/offers/stale?days=7` | Items with no routine-provided price newer than `days`: `{ items: [{ id, todoist_task_id, person, name, product_url, notes, about_price_cents, last_claude_offer_at }] }`                                                                     |
 | `POST /api/offers`             | Body `{ "items": [{ "todoist_task_id": "…" \| "item_id": 12, "offers": [{ "store", "price_cents", "currency", "url", "note" }] }] }`. Replaces that item's routine offers (`source = claude`) and recomputes the best price. Max 3 are shown. |
-| `GET /api/enrich/manifest`     | The enrichment contract: limits, URLs, hint keys, people and section aliases, control labels. Built from `src/lib/config.ts`.                                                                                                                 |
+| `GET /api/enrich/manifest`     | The enrichment contract: limits, URLs, hint keys, people and section aliases, control labels, and `categories` (limits plus the labels in use per person, from live data). Built from `src/lib/config.ts`.                                    |
 | `GET /api/enrich/instructions` | `text/markdown`: the contents of `docs/routines/ENRICHMENT-ROUTINE.md`, bundled at build time.                                                                                                                                                |
-| `GET /api/enrich/pending`      | Items with no product link or no `enriched:` hint: `{ items: [{ id, todoist_task_id, person, name, notes, product_url, created_at }] }`                                                                                                       |
+| `GET /api/enrich/pending`      | Items with no product link or no `enriched:` hint: `{ items: [{ id, todoist_task_id, person, name, notes, product_url, categories, parent_name, created_at }] }`                                                                              |
 
 ### Weekly price routine
 
@@ -236,6 +242,21 @@ You maintain the Kutner family wishlist. Site: {SITE_URL}. Send the header
 Never buy anything, never create accounts, never touch other projects.
 ```
 
+#### Categories
+
+The person page groups items into themed sections ("Motorcycle", "Road Supplies") once a
+category holds two or more shown items. The enrichment routine may add **one** category
+label to an item that clearly fits a theme: it prefers a label already on that person's list
+(the manifest's `categories.in_use`), creates a new label only when it would cover at least
+`min_items_for_new` items and at most `max_new_per_run` new labels per run, never uses the
+control labels, never labels Profile tasks or subtasks (those inherit the parent's name), and
+never removes a label. Limits live in `src/lib/config.ts`; the rules are in
+`docs/routines/ENRICHMENT-ROUTINE.md`.
+
+**The owner always wins.** The routine only ever appends labels, so a label set (or removed)
+by hand in Todoist stays as it is; to move an item, change its labels in Todoist and the site
+follows on the next sync.
+
 ### Live scheduled tasks
 
 | Name                     | Schedule (America/New_York) | Notes                                                    |
@@ -280,6 +301,7 @@ editing both tasks.
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Todoist API down / token invalid          | Sync fails and is logged in `sync_runs`; guests keep seeing the cached list; the admin "Sync & health" panel shows the failure. Writes queue in `todoist_outbox` and retry with backoff (1 min → 6 h). |
 | Todoist write keeps failing               | Admin shows "retrying" with the last error; the guest's mark is already saved and visible, so nobody double-buys.                                                                                      |
+| Product link changed in Todoist           | The old page's price is dropped on the next sync and the new page is fetched on that run; routine and "where to buy" prices are kept.                                                                  |
 | Product page blocks the fetch (Amazon)    | Item shows the link and a placeholder image; no page price. Logged under "Errors (24 h)". The Claude routine still supplies prices.                                                                    |
 | Claude routines not running               | Only product-page prices and the owner's `~$` hint are shown. Nothing breaks.                                                                                                                          |
 | Webhook secret wrong                      | Webhook calls are rejected (401); the 15-minute cron still syncs.                                                                                                                                      |

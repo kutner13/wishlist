@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import { formatPrice, longDate, shortUrl, timeAgo } from '#lib/format';
+	import { categoryLabel, formatPrice, longDate, shortUrl, timeAgo } from '#lib/format';
 	import { onMount } from 'svelte';
 
 	let { data, form } = $props();
@@ -77,7 +77,7 @@
 		<h2 id="item-title" class="name">{item.name}</h2>
 		<div class="line">
 			{#if item.desireLabel}<span class="want d{item.desire}">{item.desireLabel}</span>{/if}
-			{#each item.categories as c (c)}<span class="cat">{c}</span>{/each}
+			{#each item.categories as c (c)}<span class="cat">{categoryLabel(c)}</span>{/each}
 			{#if item.purchased}
 				<span class="pill bought">Purchased</span>
 			{:else if partial}
