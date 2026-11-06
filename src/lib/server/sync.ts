@@ -7,7 +7,7 @@ import { PEOPLE, TODOIST_PROJECT_NAME } from '#lib/config';
 import { hostnameOf, parseTask, productKey } from '#lib/parse';
 import { mapSections } from '#lib/people';
 import type { Db } from './db';
-import { recomputeBest } from './offers';
+import { dropStalePageOffers, recomputeBest } from './offers';
 import type { TodoistSource } from './todoist';
 
 export interface SyncSummary {
@@ -127,6 +127,9 @@ export async function syncFromTodoist(
 			removed++;
 		}
 	}
+
+	// Belt and braces for the link-change branch above: no page price may outlive its link.
+	await dropStalePageOffers(db);
 
 	return {
 		projectId,

@@ -181,6 +181,26 @@ describe('syncFromTodoist', () => {
 		]);
 	});
 
+	it('drops a page offer left over from an earlier link, even without a link change this run', async () => {
+		const db = testDb();
+		await syncFromTodoist(db, fakeSource(), { now: NOW });
+		const lego = (await db.first<ItemRow>("SELECT * FROM items WHERE todoist_task_id = 't-lego'"))!;
+		// A row written before the link-change handling existed: a page price from another product.
+		await db.run(
+			`INSERT INTO offers (item_id, source, store, price_cents, currency, url, note, fetched_at, is_best)
+			 VALUES (?, 'page', 'jpcycles.com', 39596, 'USD', 'https://www.jpcycles.com/product/other-thing', null, ?, 1)`,
+			lego.id,
+			NOW
+		);
+		await db.run('UPDATE items SET page_checked_at = ? WHERE id = ?', NOW, lego.id);
+
+		await syncFromTodoist(db, fakeSource(), { now: NOW });
+		const offers = await db.all<OfferRow>('SELECT * FROM offers WHERE item_id = ?', lego.id);
+		expect(offers.map((o) => o.source)).toEqual(['manual']);
+		const after = (await db.first<ItemRow>('SELECT * FROM items WHERE id = ?', lego.id))!;
+		expect(after.page_checked_at).toBeNull();
+	});
+
 	it('resets page_checked_at when the product URL changes', async () => {
 		const db = testDb();
 		await syncFromTodoist(db, fakeSource(), { now: NOW });
